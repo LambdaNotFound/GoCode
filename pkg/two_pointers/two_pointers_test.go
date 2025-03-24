@@ -1,4 +1,4 @@
-package palindrome
+package two_pointers
 
 import (
 	"testing"
@@ -6,22 +6,24 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_longestPalindrome(t *testing.T) {
+func Test_twoSum(t *testing.T) {
     testCases := []struct {
         name     string
-        input    string
-        expected string
+        numbers  []int
+        target   int
+        expected []int
     }{
         {
             "case 1",
-            "babad",
-            "bab",
+            []int{2, 7, 11, 15},
+            9,
+            []int{1, 2},
         },
     }
 
     for _, tc := range testCases {
         t.Run(tc.name, func(t *testing.T) {
-            result := longestPalindrome(tc.input)
+            result := twoSum(tc.numbers, tc.target)
             assert.Equal(t, tc.expected, result)
         })
     }
