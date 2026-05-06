@@ -15,3 +15,10 @@ type CreateExpenseRequest struct {
 	Description string  `json:"description"`
 	Date        string  `json:"date"`
 }
+
+// UpdateExpenseRequest only permits Amount and Description to be changed.
+// Any other fields in the request body will be rejected.
+type UpdateExpenseRequest struct {
+	Amount      *float64 `json:"amount"`
+	Description *string  `json:"description"`
+}

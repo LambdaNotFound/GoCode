@@ -103,6 +103,75 @@ func (h *Handler) DeleteExpense(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *Handler) UpdateExpense(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return
+	}
+
+	var req models.UpdateExpenseRequest
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields() // reject category, date, or any other field
+	if err := dec.Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	if req.Amount == nil && req.Description == nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "provide at least one of: amount, description"})
+		return
+	}
+	if req.Amount != nil && *req.Amount <= 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "amount must be greater than zero"})
+		return
+	}
+
+	// Build SET clause from whichever permitted fields were provided.
+	setClauses := []string{}
+	args := []any{}
+	if req.Amount != nil {
+		setClauses = append(setClauses, "amount = ?")
+		args = append(args, *req.Amount)
+	}
+	if req.Description != nil {
+		setClauses = append(setClauses, "description = ?")
+		args = append(args, *req.Description)
+	}
+
+	query := "UPDATE expenses SET "
+	for i, clause := range setClauses {
+		if i > 0 {
+			query += ", "
+		}
+		query += clause
+	}
+	query += " WHERE id = ?"
+	args = append(args, id)
+
+	result, err := h.db.ExecContext(r.Context(), query, args...)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	if n, _ := result.RowsAffected(); n == 0 {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "expense not found"})
+		return
+	}
+
+	// Return the updated record.
+	var e models.Expense
+	row := h.db.QueryRowContext(r.Context(),
+		"SELECT id, amount, category, description, date, created_at FROM expenses WHERE id = ?", id,
+	)
+	if err := row.Scan(&e.ID, &e.Amount, &e.Category, &e.Description, &e.Date, &e.CreatedAt); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to fetch updated expense"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, e)
+}
+
 func (h *Handler) GetSummary(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.db.QueryContext(r.Context(),
 		"SELECT category, SUM(amount) as total FROM expenses GROUP BY category ORDER BY total DESC",
